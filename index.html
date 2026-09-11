@@ -372,6 +372,12 @@
         box-shadow: 18px 0 40px rgba(0, 0, 0, .35);
       }
       .sidebar.mobile-open { transform: translateX(0); }
+        .sidebar-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 5;
+          background: rgba(2, 6, 23, .45);
+        }
       .main { width: 100%; }
       .bubble { max-width: 85%; }
       .topbar .small { display: none; }
@@ -436,6 +442,7 @@
       </div>
     </div>
   </div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
 
   <div class="main">
     <div class="topbar">
@@ -901,11 +908,19 @@
     restoreSession();
 
     document.getElementById("mobile-menu").onclick = () => {
-      document.querySelector(".sidebar").classList.toggle("mobile-open");
+      const sidebar = document.querySelector(".sidebar");
+      const backdrop = document.getElementById("sidebar-backdrop");
+      const isOpen = sidebar.classList.toggle("mobile-open");
+      backdrop.hidden = !isOpen;
+    };
+    document.getElementById("sidebar-backdrop").onclick = () => {
+      document.querySelector(".sidebar").classList.remove("mobile-open");
+      document.getElementById("sidebar-backdrop").hidden = true;
     };
     document.querySelector(".sidebar").addEventListener("click", (event) => {
       if (event.target.closest(".conversation-item") || event.target.closest("#new-chat")) {
         document.querySelector(".sidebar").classList.remove("mobile-open");
+        document.getElementById("sidebar-backdrop").hidden = true;
       }
     });
 
