@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020617">
+  <meta name="description" content="Rocket.Ai, your personal AI assistant.">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/rocket.svg" type="image/svg+xml">
+  <title>Rocket.Ai</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: flex;
+      height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+    body.auth-locked > *:not(.auth-modal) {
+      visibility: hidden;
+    }
+    .auth-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(2, 6, 23, 0.78);
+    }
+    .auth-card {
+      width: min(100%, 420px);
+      padding: 32px;
+      box-sizing: border-box;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+    }
+      [hidden] {
+        display: none !important;
+      }
+    .auth-card h1 {
+      margin: 0 0 8px;
+    }
+    .auth-card p {
+      color: #9ca3af;
+      margin: 0 0 24px;
+    }
+    .auth-choice,
+    .auth-form {
+      display: grid;
+      gap: 12px;
+    }
+    .auth-choice button {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+    }
+    .auth-form input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 11px;
+    }
+    .auth-form label {
+      margin-top: 4px;
+    }
+    .auth-form button {
+      margin-top: 8px;
+      border-radius: 10px;
+      padding: 11px 16px;
+    }
+    .auth-back {
+      background: transparent;
+      color: #9ca3af;
+      padding: 4px 0;
+      justify-self: start;
+    }
+    .auth-error {
+      color: #fca5a5;
+      min-height: 18px;
+    }
+    .sidebar {
+      width: 280px;
+      background: #020617;
+      border-right: 1px solid #1f2937;
+      padding: 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .brand-row,
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .new-chat {
+      width: 100%;
+      margin: 18px 0 12px;
+      border-radius: 10px;
+      text-align: left;
+    }
+    .conversation-list {
+      display: grid;
+      gap: 4px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .conversation-item {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: transparent;
+      color: #cbd5e1;
+      border-radius: 8px;
+      text-align: left;
+      font-weight: 400;
+    }
+    .conversation-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .conversation-menu-button {
+      flex: 0 0 30px;
+      padding: 6px 0;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .conversation-menu {
+      position: absolute;
+      right: 4px;
+      top: 34px;
+      z-index: 3;
+      min-width: 130px;
+      padding: 4px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
+    }
+    .conversation-menu button {
+      width: 100%;
+      background: transparent;
+      color: #fca5a5;
+      text-align: left;
+      font-weight: 400;
+    }
+    .plus-wrap {
+      position: relative;
+    }
+    .attachment-menu {
+      position: absolute;
+      bottom: 48px;
+      left: 0;
+      z-index: 4;
+      display: grid;
+      gap: 2px;
+      min-width: 170px;
+      padding: 6px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 10px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
+    }
+    .attachment-menu button {
+      background: transparent;
+      color: #e5e7eb;
+      text-align: left;
+      font-weight: 400;
+    }
+    .attachment-menu button:hover,
+    .conversation-menu button:hover { background: #334155; }
+    .image-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(2, 6, 23, .78);
+    }
+    .image-card {
+      width: min(100%, 460px);
+      padding: 24px;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 14px;
+    }
+    .image-card input { width: 100%; box-sizing: border-box; margin: 12px 0; }
+    .camera-preview { width: 100%; background: #020617; border-radius: 10px; margin: 12px 0; }
+    .image-card-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .image-status { min-height: 18px; }
+    .copilot-tab {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      z-index: 5;
+      width: 30px;
+      height: 72px;
+      border-radius: 10px 0 0 10px;
+      transform: translateY(-50%);
+      padding: 0;
+    }
+    .copilot-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 4;
+      width: min(340px, 88vw);
+      height: 100vh;
+      box-sizing: border-box;
+      padding: 18px;
+      background: #020617;
+      border-left: 1px solid #334155;
+      box-shadow: -18px 0 40px rgba(0, 0, 0, .28);
+    }
+    .copilot-panel textarea { width: 100%; box-sizing: border-box; min-height: 90px; margin: 18px 0 10px; }
+    .copilot-close { float: right; }
+    .conversation-item.active,
+    .conversation-item:hover {
+      background: #1e293b;
+    }
+    .account-footer {
+      border-top: 1px solid #1f2937;
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+    .topbar {
+      padding: 12px 16px;
+      border-bottom: 1px solid #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-title { display: flex; align-items: center; gap: 10px; }
+    .brand-logo {
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .mobile-menu { display: none; }
+    .install-app { display: inline-flex; }
+    .chat-area {
+      flex: 1;
+      padding: 28px max(16px, calc((100% - 820px) / 2));
+      overflow-y: auto;
+    }
+    .bubble {
+      max-width: min(70%, 680px);
+      padding: 10px 14px;
+      border-radius: 16px;
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+    }
+    .user {
+      background: #1d4ed8;
+      margin-left: auto;
+    }
+    .ai {
+      background: #111827;
+      border: 1px solid #1f2937;
+      margin-right: auto;
+    }
+    .input-bar {
+      padding: 12px max(16px, calc((100% - 820px) / 2));
+      border-top: 1px solid #1f2937;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+    .input-wrap {
+      display: flex;
+      flex: 1;
+      width: 100%;
+      box-sizing: border-box;
+      gap: 8px;
+      align-items: center;
+      padding: 6px;
+      background: #020617;
+      border: 1px solid #374151;
+      border-radius: 14px;
+    }
+    .composer-note {
+      width: 100%;
+      color: #64748b;
+      font-size: 11px;
+      text-align: center;
+    }
+    input[type="text"], input[type="email"], input[type="password"] {
+      background: #020617;
+      border: 1px solid #374151;
+      color: #e5e7eb;
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .msg-input {
+      flex: 1;
+      border: 0 !important;
+      outline: 0;
+      background: transparent !important;
+    }
+    button {
+      background: #22c55e;
+      border: none;
+      color: #020617;
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: #111827;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+    }
+    .plus-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .auth-section {
+      margin-top: 16px;
+      border-top: 1px solid #1f2937;
+      padding-top: 16px;
+    }
+    label {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .small {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 8px;
+    }
+    .account-action {
+      padding: 4px 0;
+      background: transparent;
+      color: #9ca3af;
+      font-size: 12px;
+    }
+    @media (max-width: 700px) {
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 6;
+        width: min(280px, 86vw);
+        transform: translateX(-105%);
+        transition: transform .2s ease;
+        box-shadow: 18px 0 40px rgba(0, 0, 0, .35);
+      }
+      .sidebar.mobile-open { transform: translateX(0); }
+      .main { width: 100%; }
+      .bubble { max-width: 85%; }
+      .topbar .small { display: none; }
+      .mobile-menu { display: inline-flex; }
+      .topbar { padding: 10px 12px; }
+      .chat-area { padding: 18px 12px; }
+      .input-bar { padding: 10px 12px max(10px, env(safe-area-inset-bottom)); }
+      .auth-card { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="auth-modal" id="auth-modal">
+    <div class="auth-card">
+      <div id="auth-choice-view">
+        <h1>Welcome to Rocket</h1>
+        <p>Your local AI assistant. Choose how you want to continue.</p>
+        <div class="auth-choice">
+          <button id="show-register">Sign up</button>
+          <button id="show-login" class="secondary">Log in</button>
+          <button id="continue-guest" class="secondary">Continue as guest</button>
+        </div>
+      </div>
+
+      <form id="auth-form" class="auth-form" hidden>
+        <button type="button" class="auth-back" id="auth-back">Back</button>
+        <h1 id="auth-title">Sign up</h1>
+        <p id="auth-description">Create an account to use Rocket.</p>
+        <label for="auth-email">Email</label>
+        <input type="email" id="auth-email" autocomplete="email" required>
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" autocomplete="current-password" minlength="6" required>
+        <button type="submit" id="auth-submit">Sign up</button>
+        <button type="button" class="secondary" id="show-forgot">Forgot password?</button>
+        <div id="auth-error" class="auth-error small" role="status"></div>
+      </form>
+
+      <form id="reset-form" class="auth-form" hidden>
+        <h1>Reset password</h1>
+        <p>Choose a new password for your Rocket account.</p>
+        <label for="reset-password-input">New password</label>
+        <input type="password" id="reset-password-input" minlength="6" required>
+        <button type="submit">Reset password</button>
+        <button type="button" class="auth-back" id="reset-back">Back to login</button>
+        <div id="reset-error" class="auth-error small" role="status"></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="brand-row">
+      <h2>Rocket</h2>
+      <span class="small">AI</span>
+    </div>
+    <button class="secondary new-chat" id="new-chat">+ New chat</button>
+    <div class="conversation-list" id="conversation-list"></div>
+    <div class="account-footer">
+      <div class="brand-row">
+        <p id="account-status" class="small">Guest session</p>
+        <button class="account-action" id="account-action">Log in</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">
+        <button class="secondary mobile-menu" id="mobile-menu" aria-label="Open navigation">☰</button>
+        <img class="brand-logo" src="/rocket.png.png" alt="Rocket.Ai logo">
+        <div>Rocket.Ai</div>
+      </div>
+      <div class="topbar-actions">
+        <div class="small">Model: llama3.1 (local)</div>
+        <button class="secondary install-app" id="install-app" hidden>Install</button>
+      </div>
+    </div>
+
+    <div class="chat-area" id="chat-area">
+      <div class="bubble ai">
+        Hi, I’m Rocket. Ask me anything, or attach a file with the + button.
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-wrap">
+        <div class="plus-wrap">
+          <button class="secondary plus-btn" id="plus-btn" aria-label="Add attachment">+</button>
+          <div class="attachment-menu" id="attachment-menu" hidden>
+            <button id="add-file">Add file/photo</button>
+            <button id="take-photo">Take photo</button>
+            <button id="create-photo">Create photo</button>
+          </div>
+        </div>
+        <input type="file" id="file-input" style="display:none" />
+        <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" />
+        <input type="text" id="chat-input" class="msg-input" placeholder="Message Rocket..." />
+        <button id="send-btn" aria-label="Send message">↑</button>
+      </div>
+      <div class="composer-note">AI makes mistakes, check your work</div>
+    </div>
+  </div>
+
+  <button class="copilot-tab" id="copilot-tab" aria-label="Open side assistant">‹</button>
+  <aside class="copilot-panel" id="copilot-panel" hidden>
+    <button class="secondary copilot-close" id="copilot-close" aria-label="Close side assistant">›</button>
+    <h2>Rocket side assistant</h2>
+    <p class="small">Keep Rocket open beside your work.</p>
+    <textarea id="copilot-input" placeholder="Ask Rocket..."></textarea>
+    <button id="copilot-send">Ask Rocket</button>
+    <div id="copilot-answer" class="bubble ai" hidden></div>
+  </aside>
+
+  <div class="image-modal" id="image-modal" hidden>
+    <form class="image-card" id="image-form">
+      <h2>Create an image</h2>
+      <p class="small">Describe the image you want Rocket to generate.</p>
+      <input type="text" id="image-prompt" placeholder="A moonlit city in watercolor" required>
+      <div class="image-card-actions">
+        <button type="button" class="secondary" id="image-cancel">Cancel</button>
+        <button type="submit">Generate</button>
+      </div>
+      <div id="image-status" class="image-status small" role="status"></div>
+    </form>
+  </div>
+
+  <div class="image-modal" id="camera-modal" hidden>
+    <div class="image-card">
+      <h2>Take a photo</h2>
+      <video class="camera-preview" id="camera-preview" autoplay playsinline></video>
+      <div class="image-card-actions">
+        <button type="button" class="secondary" id="camera-cancel">Cancel</button>
+        <button type="button" id="camera-capture">Take photo</button>
+      </div>
+      <div id="camera-status" class="image-status small" role="status"></div>
+    </div>
+  </div>
+
+  <script>
+    const apiBase = window.location.protocol === "file:"
+      ? "http://127.0.0.1:8000"
+      : window.location.origin;
+
+
+    const chatArea = document.getElementById("chat-area");
+    const chatInput = document.getElementById("chat-input");
+    const fileInput = document.getElementById("file-input");
+    const cameraInput = document.getElementById("camera-input");
+    const plusBtn = document.getElementById("plus-btn");
+    const sendBtn = document.getElementById("send-btn");
+    const conversationList = document.getElementById("conversation-list");
+    const newChatButton = document.getElementById("new-chat");
+    let selectedConversationId = null;
+    let authenticatedEmail = null;
+    let selectedAttachment = null;
+    let cameraStream = null;
+
+    function addBubble(text, type) {
+      const div = document.createElement("div");
+      div.className = "bubble " + type;
+      div.textContent = text;
+      chatArea.appendChild(div);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    plusBtn.onclick = () => {
+      document.getElementById("attachment-menu").hidden = !document.getElementById("attachment-menu").hidden;
+    };
+
+    document.getElementById("add-file").onclick = () => {
+      document.getElementById("attachment-menu").hidden = true;
+      fileInput.click();
+    };
+    document.getElementById("take-photo").onclick = () => {
+      document.getElementById("attachment-menu").hidden = true;
+      openCamera();
+    };
+    document.getElementById("create-photo").onclick = () => {
+      document.getElementById("attachment-menu").hidden = true;
+      document.getElementById("image-modal").hidden = false;
+      document.getElementById("image-prompt").focus();
+    };
+    fileInput.onchange = () => { selectedAttachment = fileInput.files[0] || null; };
+    cameraInput.onchange = () => { selectedAttachment = cameraInput.files[0] || null; };
+
+    async function openCamera() {
+      const cameraModal = document.getElementById("camera-modal");
+      const cameraStatus = document.getElementById("camera-status");
+      cameraModal.hidden = false;
+      cameraStatus.textContent = "Requesting camera permission...";
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        cameraStatus.textContent = "Camera access is unavailable in this browser. Please choose a photo file.";
+        return;
+      }
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        document.getElementById("camera-preview").srcObject = cameraStream;
+        cameraStatus.textContent = "";
+      } catch (error) {
+        cameraStatus.textContent = "Camera permission was denied or no camera was found.";
+      }
+    }
+
+    function closeCamera() {
+      if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
+      cameraStream = null;
+      document.getElementById("camera-preview").srcObject = null;
+      document.getElementById("camera-modal").hidden = true;
+    }
+
+    document.getElementById("camera-cancel").onclick = closeCamera;
+    document.getElementById("camera-capture").onclick = () => {
+      const video = document.getElementById("camera-preview");
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      canvas.toBlob((blob) => {
+        selectedAttachment = new File([blob], "rocket-photo.jpg", { type: "image/jpeg" });
+        closeCamera();
+      }, "image/jpeg", 0.92);
+    };
+
+    async function sendMessage() {
+      const msg = chatInput.value.trim();
+      if (!msg && !selectedAttachment) return;
+
+      addBubble(msg || `[attached: ${selectedAttachment.name}]`, "user");
+      chatInput.value = "";
+
+      const formData = new FormData();
+      formData.append("message", msg || "Analyze the attached file.");
+      if (selectedConversationId) {
+        formData.append("conversation_id", selectedConversationId);
+      }
+      if (selectedAttachment) {
+        formData.append("file", selectedAttachment);
+      }
+
+      const res = await fetch(apiBase + "/chat", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        addBubble(data.detail || "Unable to send that message.", "ai");
+        return;
+      }
+      addBubble(data.reply, "ai");
+      selectedConversationId = data.conversation_id || selectedConversationId;
+      if (authenticatedEmail) loadConversations();
+
+      fileInput.value = "";
+      cameraInput.value = "";
+      selectedAttachment = null;
+    }
+
+    sendBtn.onclick = sendMessage;
+    chatInput.onkeydown = (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    };
+
+    function resetChatArea() {
+      chatArea.innerHTML = "";
+      addBubble("Hi, I’m Rocket. What can I help you with?", "ai");
+    }
+
+    async function loadConversation(id) {
+      selectedConversationId = id;
+      const response = await fetch(apiBase + "/conversations/" + id + "/messages");
+      const data = await response.json();
+      chatArea.innerHTML = "";
+      data.messages.forEach((message) => addBubble(message.content, message.role === "user" ? "user" : "ai"));
+      document.querySelectorAll(".conversation-item").forEach((item) => {
+        item.classList.toggle("active", item.dataset.id === String(id));
+      });
+    }
+
+    async function loadConversations() {
+      if (!authenticatedEmail) return;
+      const response = await fetch(apiBase + "/conversations");
+      if (!response.ok) return;
+      const data = await response.json();
+      conversationList.innerHTML = "";
+      data.conversations.forEach((conversation) => {
+        const row = document.createElement("div");
+        row.className = "conversation-row";
+        const button = document.createElement("button");
+        button.className = "conversation-item";
+        button.dataset.id = conversation.id;
+        button.textContent = conversation.title;
+        button.onclick = () => loadConversation(conversation.id);
+        const menuButton = document.createElement("button");
+        menuButton.className = "conversation-menu-button";
+        menuButton.textContent = "...";
+        menuButton.setAttribute("aria-label", "Chat options");
+        const menu = document.createElement("div");
+        menu.className = "conversation-menu";
+        menu.hidden = true;
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "Delete chat";
+        deleteButton.onclick = async () => {
+          const response = await fetch(apiBase + "/conversations/" + conversation.id, { method: "DELETE" });
+          if (response.ok) {
+            if (selectedConversationId === conversation.id) {
+              selectedConversationId = null;
+              resetChatArea();
+            }
+            await loadConversations();
+          }
+        };
+        menu.appendChild(deleteButton);
+        menuButton.onclick = (event) => {
+          event.stopPropagation();
+          document.querySelectorAll(".conversation-menu").forEach((item) => {
+            if (item !== menu) item.hidden = true;
+          });
+          menu.hidden = !menu.hidden;
+        };
+        row.append(button, menuButton, menu);
+        conversationList.appendChild(row);
+      });
+      if (selectedConversationId) {
+        document.querySelectorAll(".conversation-item").forEach((item) => {
+          item.classList.toggle("active", item.dataset.id === String(selectedConversationId));
+        });
+      }
+    }
+
+    newChatButton.onclick = async () => {
+      resetChatArea();
+      selectedConversationId = null;
+      if (authenticatedEmail) {
+        const response = await fetch(apiBase + "/conversations", { method: "POST" });
+        const conversation = await response.json();
+        selectedConversationId = conversation.id;
+        await loadConversations();
+      }
+    };
+
+    document.getElementById("image-cancel").onclick = () => {
+      document.getElementById("image-modal").hidden = true;
+    };
+    document.getElementById("image-form").onsubmit = async (event) => {
+      event.preventDefault();
+      const status = document.getElementById("image-status");
+      status.textContent = "Creating image...";
+      const formData = new FormData();
+      formData.append("prompt", document.getElementById("image-prompt").value.trim());
+      const response = await fetch(apiBase + "/generate-image", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) {
+        status.textContent = data.detail || "Image generation failed.";
+        return;
+      }
+      const wrapper = document.createElement("div");
+      wrapper.className = "bubble ai";
+      const image = document.createElement("img");
+      image.src = data.image_url;
+      image.alt = document.getElementById("image-prompt").value;
+      image.style.maxWidth = "100%";
+      image.style.borderRadius = "10px";
+      wrapper.appendChild(image);
+      chatArea.appendChild(wrapper);
+      chatArea.scrollTop = chatArea.scrollHeight;
+      document.getElementById("image-modal").hidden = true;
+      document.getElementById("image-prompt").value = "";
+      status.textContent = "";
+    };
+
+    const copilotPanel = document.getElementById("copilot-panel");
+    document.getElementById("copilot-tab").onclick = () => { copilotPanel.hidden = false; };
+    document.getElementById("copilot-close").onclick = () => { copilotPanel.hidden = true; };
+    document.getElementById("copilot-send").onclick = async () => {
+      const prompt = document.getElementById("copilot-input").value.trim();
+      if (!prompt) return;
+      const formData = new FormData();
+      formData.append("message", prompt);
+      const response = await fetch(apiBase + "/chat", { method: "POST", body: formData });
+      const data = await response.json();
+      const answer = document.getElementById("copilot-answer");
+      answer.textContent = response.ok ? data.reply : (data.detail || "Unable to answer.");
+      answer.hidden = false;
+    };
+
+    // AUTH
+    const authModal = document.getElementById("auth-modal");
+    const authChoiceView = document.getElementById("auth-choice-view");
+    const authForm = document.getElementById("auth-form");
+    const authTitle = document.getElementById("auth-title");
+    const authDescription = document.getElementById("auth-description");
+    const authSubmit = document.getElementById("auth-submit");
+    const authError = document.getElementById("auth-error");
+    const resetForm = document.getElementById("reset-form");
+    const resetError = document.getElementById("reset-error");
+    const accountStatus = document.getElementById("account-status");
+    const accountAction = document.getElementById("account-action");
+    let authMode = "register";
+
+    function showAuthForm(mode) {
+      authMode = mode;
+      authChoiceView.hidden = true;
+      authForm.hidden = false;
+      resetForm.hidden = true;
+      authError.textContent = "";
+      const isRegister = mode === "register";
+      authTitle.textContent = isRegister ? "Sign up" : "Log in";
+      authDescription.textContent = isRegister
+        ? "Create an account to use Rocket."
+        : "Log in to continue to Rocket.";
+      authSubmit.textContent = isRegister ? "Sign up" : "Log in";
+      document.getElementById("show-forgot").hidden = isRegister;
+      document.getElementById("auth-email").focus();
+    }
+
+    function showAuthChoices() {
+      authForm.hidden = true;
+      resetForm.hidden = true;
+      authChoiceView.hidden = false;
+      authError.textContent = "";
+    }
+
+    async function enterApp(status, email = null) {
+      document.body.classList.remove("auth-locked");
+      authModal.hidden = true;
+      accountStatus.textContent = email && email.length > 6
+        ? email.slice(0, 6) + "..."
+        : (email || status);
+      authenticatedEmail = email;
+      accountAction.textContent = email ? "Switch account" : "Log in";
+      resetChatArea();
+      if (email) await loadConversations();
+    }
+
+    function showResetForm() {
+      authChoiceView.hidden = true;
+      authForm.hidden = true;
+      resetForm.hidden = false;
+      resetError.textContent = "";
+      document.getElementById("reset-password-input").focus();
+    }
+
+    document.body.classList.add("auth-locked");
+    document.getElementById("show-register").onclick = () => showAuthForm("register");
+    document.getElementById("show-login").onclick = () => showAuthForm("login");
+    document.getElementById("auth-back").onclick = showAuthChoices;
+    document.getElementById("continue-guest").onclick = () => enterApp("Guest session");
+    document.getElementById("reset-back").onclick = showAuthChoices;
+
+    document.getElementById("show-forgot").onclick = async () => {
+      const email = document.getElementById("auth-email").value.trim();
+      if (!email) {
+        authError.textContent = "Enter your email first.";
+        return;
+      }
+      const fd = new FormData();
+      fd.append("email", email);
+      const res = await fetch(apiBase + "/forgot-password", { method: "POST", body: fd });
+      const data = await res.json();
+      authError.textContent = data.message || data.detail || "Unable to send reset request.";
+    };
+
+    authForm.onsubmit = async (e) => {
+      e.preventDefault();
+      authError.textContent = "";
+      const fd = new FormData();
+      fd.append("email", document.getElementById("auth-email").value.trim());
+      fd.append("password", document.getElementById("auth-password").value);
+      const endpoint = authMode === "register" ? "/register" : "/login";
+      try {
+        const res = await fetch(apiBase + endpoint, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          authError.textContent = data.detail || "Authentication failed.";
+          return;
+        }
+        await enterApp(data.message || "Logged in", data.email);
+      } catch (error) {
+        authError.textContent = "Rocket is unavailable. Start the FastAPI server and try again.";
+      }
+    };
+
+    resetForm.onsubmit = async (event) => {
+      event.preventDefault();
+      const token = new URLSearchParams(window.location.search).get("reset_token");
+      const formData = new FormData();
+      formData.append("token", token || "");
+      formData.append("password", document.getElementById("reset-password-input").value);
+      const response = await fetch(apiBase + "/reset-password", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) {
+        resetError.textContent = data.detail || "Unable to reset password.";
+        return;
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+      await enterApp(data.message || "Password reset successfully", data.email);
+    };
+
+    accountAction.onclick = async () => {
+      if (authenticatedEmail) {
+        await fetch(apiBase + "/logout", { method: "POST" });
+      }
+      authenticatedEmail = null;
+      selectedConversationId = null;
+      conversationList.innerHTML = "";
+      accountStatus.textContent = "Guest session";
+      accountAction.textContent = "Log in";
+      authModal.hidden = false;
+      document.body.classList.add("auth-locked");
+      showAuthChoices();
+    };
+
+    async function restoreSession() {
+      const resetToken = new URLSearchParams(window.location.search).get("reset_token");
+      if (resetToken) {
+        showResetForm();
+        return;
+      }
+      const response = await fetch(apiBase + "/me");
+      const data = await response.json();
+      if (data.authenticated) await enterApp(data.email, data.email);
+    }
+
+    restoreSession();
+
+    document.getElementById("mobile-menu").onclick = () => {
+      document.querySelector(".sidebar").classList.toggle("mobile-open");
+    };
+    document.querySelector(".sidebar").addEventListener("click", (event) => {
+      if (event.target.closest(".conversation-item") || event.target.closest("#new-chat")) {
+        document.querySelector(".sidebar").classList.remove("mobile-open");
+      }
+    });
+
+    let deferredInstallPrompt;
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      const installButton = document.getElementById("install-app");
+      installButton.hidden = false;
+      installButton.onclick = async () => {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        installButton.hidden = true;
+      };
+    });
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "Rocket.Ai",
+  "short_name": "Rocket.Ai",
+  "description": "Your personal AI assistant.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/rocket.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
