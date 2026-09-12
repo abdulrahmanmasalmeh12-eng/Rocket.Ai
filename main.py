@@ -53,8 +53,18 @@ def ask_llama(prompt: str) -> str:
         timeout=120
     )
     if not resp.ok:
-        raise HTTPException(status_code=502, detail="Groq could not generate a response")
-    return resp.json()["choices"][0]["message"]["content"]
+        try:
+            error_message = resp.json().get("error", {}).get("message", resp.text)
+        except ValueError:
+            error_message = resp.text
+        raise HTTPException(
+            status_code=502,
+            detail=f"Groq error ({resp.status_code}): {error_message[:300]}"
+        )
+    try:
+        return resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=502, detail=f"Invalid Groq response: {error}")
 
 # -----------------------------
 # Database Setup
