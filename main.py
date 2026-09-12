@@ -29,20 +29,32 @@ app.add_middleware(
 )
 
 # -----------------------------
-# LLM (Ollama)
+# LLM (Groq)
 # -----------------------------
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "llama3.1"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+MODEL_NAME = "llama-3.1-8b-instant"
 SESSION_COOKIE = "rocket_session"
 RESET_EXPIRY_MINUTES = 30
 
 def ask_llama(prompt: str) -> str:
-    resp = requests.post(OLLAMA_URL, json={
-        "model": MODEL_NAME,
-        "prompt": prompt,
-        "stream": False
-    })
-    return resp.json()["response"]
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="GROQ_API_KEY is not configured")
+    resp = requests.post(
+        GROQ_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            "temperature": 0.7,
+            "max_tokens": 512
+        },
+        timeout=120
+    )
+    if not resp.ok:
+        raise HTTPException(status_code=502, detail="Groq could not generate a response")
+    return resp.json()["choices"][0]["message"]["content"]
 
 # -----------------------------
 # Database Setup
