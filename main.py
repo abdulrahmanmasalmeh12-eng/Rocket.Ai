@@ -32,7 +32,7 @@ app.add_middleware(
 # LLM (Groq)
 # -----------------------------
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+MODEL_NAME = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 SESSION_COOKIE = "rocket_session"
 RESET_EXPIRY_MINUTES = 30
 
