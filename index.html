@@ -544,6 +544,28 @@
       chatArea.scrollTop = chatArea.scrollHeight;
     }
 
+    async function readChatStream(response, onToken) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let reply = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const chunk = JSON.parse(line);
+          if (chunk.error) throw new Error(chunk.error);
+          reply += chunk.token || "";
+          onToken(reply);
+        }
+        if (done) break;
+      }
+      return reply;
+    }
+
     plusBtn.onclick = () => {
       document.getElementById("attachment-menu").hidden = !document.getElementById("attachment-menu").hidden;
     };
@@ -622,13 +644,23 @@
         method: "POST",
         body: formData
       });
-      const data = await res.json();
       if (!res.ok) {
+        const data = await res.json();
         addBubble(data.detail || "Unable to send that message.", "ai");
         return;
       }
-      addBubble(data.reply, "ai");
-      selectedConversationId = data.conversation_id || selectedConversationId;
+      const aiBubble = document.createElement("div");
+      aiBubble.className = "bubble ai";
+      chatArea.appendChild(aiBubble);
+      try {
+        await readChatStream(res, (reply) => {
+          aiBubble.textContent = reply;
+          chatArea.scrollTop = chatArea.scrollHeight;
+        });
+      } catch (error) {
+        aiBubble.textContent = error.message || "Unable to send that message.";
+      }
+      selectedConversationId = res.headers.get("X-Conversation-Id") || selectedConversationId;
       if (authenticatedEmail) loadConversations();
 
       fileInput.value = "";
@@ -761,9 +793,17 @@
       const formData = new FormData();
       formData.append("message", prompt);
       const response = await fetch(apiBase + "/chat", { method: "POST", body: formData });
-      const data = await response.json();
       const answer = document.getElementById("copilot-answer");
-      answer.textContent = response.ok ? data.reply : (data.detail || "Unable to answer.");
+      if (!response.ok) {
+        const data = await response.json();
+        answer.textContent = data.detail || "Unable to answer.";
+      } else {
+        try {
+          await readChatStream(response, (reply) => { answer.textContent = reply; });
+        } catch (error) {
+          answer.textContent = error.message || "Unable to answer.";
+        }
+      }
       answer.hidden = false;
     };
 

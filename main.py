@@ -1,7 +1,7 @@
 print(">>> RUNNING THIS MAIN.PY <<<")
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
 import hashlib
@@ -9,6 +9,7 @@ import hmac
 import requests
 import io
 import base64
+import json
 import os
 import secrets
 import smtplib
@@ -36,13 +37,23 @@ MODEL_NAME = "llama3.1"
 SESSION_COOKIE = "rocket_session"
 RESET_EXPIRY_MINUTES = 30
 
-def ask_llama(prompt: str) -> str:
-    resp = requests.post(OLLAMA_URL, json={
-        "model": MODEL_NAME,
-        "prompt": prompt,
-        "stream": False
-    })
-    return resp.json()["response"]
+def stream_llama(prompt: str):
+    resp = requests.post(
+        OLLAMA_URL,
+        json={
+            "model": MODEL_NAME,
+            "prompt": prompt,
+            "stream": True,
+            "keep_alive": "10m",
+            "options": {"num_predict": 256}
+        },
+        stream=True,
+        timeout=(10, 300)
+    )
+    resp.raise_for_status()
+    for line in resp.iter_lines():
+        if line:
+            yield json.loads(line).get("response", "")
 
 # -----------------------------
 # Database Setup
@@ -396,7 +407,6 @@ async def chat(
         else:
             base_prompt += f"\nAttached file: {file.filename}"
 
-    reply = ask_llama(base_prompt)
     if user:
         conn = get_db()
         if conversation_id:
@@ -415,22 +425,42 @@ async def chat(
                 (user["id"], message[:48] or "New chat", timestamp, timestamp)
             )
             conversation_id = cursor.lastrowid
-        timestamp = iso_now()
-        conn.executemany(
-            """INSERT INTO messages (conversation_id, role, content, created_at)
-               VALUES (?, ?, ?, ?)""",
-            [
-                (conversation_id, "user", message, timestamp),
-                (conversation_id, "assistant", reply, timestamp)
-            ]
-        )
-        conn.execute(
-            "UPDATE conversations SET updated_at = ? WHERE id = ?",
-            (timestamp, conversation_id)
-        )
-        conn.commit()
+            conn.commit()
         conn.close()
-    return {"reply": reply, "conversation_id": conversation_id}
+
+    def response_stream():
+        reply_parts = []
+        try:
+            for token in stream_llama(base_prompt):
+                reply_parts.append(token)
+                yield json.dumps({"token": token}) + "\n"
+        except (requests.RequestException, json.JSONDecodeError) as error:
+            yield json.dumps({"error": f"AI request failed: {error}"}) + "\n"
+            return
+
+        if user:
+            reply = "".join(reply_parts)
+            conn = get_db()
+            timestamp = iso_now()
+            conn.executemany(
+                """INSERT INTO messages (conversation_id, role, content, created_at)
+                   VALUES (?, ?, ?, ?)""",
+                [
+                    (conversation_id, "user", message, timestamp),
+                    (conversation_id, "assistant", reply, timestamp)
+                ]
+            )
+            conn.execute(
+                "UPDATE conversations SET updated_at = ? WHERE id = ?",
+                (timestamp, conversation_id)
+            )
+            conn.commit()
+            conn.close()
+
+    headers = {}
+    if conversation_id:
+        headers["X-Conversation-Id"] = str(conversation_id)
+    return StreamingResponse(response_stream(), media_type="application/x-ndjson", headers=headers)
 
 # -----------------------------
 # SERVE FRONTEND
