@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
 import hashlib
+import json
 import hmac
 import requests
 import io
@@ -35,8 +36,14 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_NAME = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 SESSION_COOKIE = "rocket_session"
 RESET_EXPIRY_MINUTES = 30
+SYSTEM_PROMPT = (
+    "You are Rocket.AI, a helpful AI assistant in the Rocket application. "
+    "Identify yourself as Rocket.AI, not ChatGPT. If asked about the underlying "
+    "model or provider, answer honestly. Use the conversation history to interpret "
+    "follow-up messages and maintain context."
+)
 
-def ask_llama(prompt: str) -> str:
+def ask_llama(messages: list[dict[str, str]]) -> str:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="GROQ_API_KEY is not configured")
@@ -45,10 +52,10 @@ def ask_llama(prompt: str) -> str:
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *messages],
             "stream": False,
             "temperature": 0.7,
-            "max_tokens": 512
+            "max_tokens": 2048
         },
         timeout=120
     )
@@ -391,9 +398,43 @@ async def chat(
     request: Request,
     message: str = Form(...),
     conversation_id: int | None = Form(None),
+    history: str = Form("[]"),
     file: UploadFile | None = File(None)
 ):
     user = current_user(request)
+    if user and conversation_id:
+        conn = get_db()
+        owner = conn.execute(
+            "SELECT id FROM conversations WHERE id = ? AND user_id = ?",
+            (conversation_id, user["id"])
+        ).fetchone()
+        if not owner:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        rows = conn.execute(
+            "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 20",
+            (conversation_id,)
+        ).fetchall()
+        conn.close()
+        prior_messages = [dict(row) for row in reversed(rows)]
+    else:
+        prior_messages = []
+        if not user:
+            try:
+                guest_history = json.loads(history)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid chat history")
+            if not isinstance(guest_history, list):
+                raise HTTPException(status_code=400, detail="Invalid chat history")
+            for turn in guest_history[-20:]:
+                if (
+                    not isinstance(turn, dict)
+                    or turn.get("role") not in ("user", "assistant")
+                    or not isinstance(turn.get("content"), str)
+                ):
+                    raise HTTPException(status_code=400, detail="Invalid chat history")
+                prior_messages.append({"role": turn["role"], "content": turn["content"][:12000]})
+
     base_prompt = f"User says: {message}\n\n"
 
     if file:
@@ -418,18 +459,11 @@ async def chat(
         else:
             base_prompt += f"\nAttached file: {file.filename}"
 
-    reply = ask_llama(base_prompt)
+    prior_messages.append({"role": "user", "content": base_prompt})
+    reply = ask_llama(prior_messages)
     if user:
         conn = get_db()
-        if conversation_id:
-            owner = conn.execute(
-                "SELECT id FROM conversations WHERE id = ? AND user_id = ?",
-                (conversation_id, user["id"])
-            ).fetchone()
-            if not owner:
-                conn.close()
-                raise HTTPException(status_code=404, detail="Conversation not found")
-        else:
+        if not conversation_id:
             timestamp = iso_now()
             cursor = conn.execute(
                 """INSERT INTO conversations (user_id, title, created_at, updated_at)

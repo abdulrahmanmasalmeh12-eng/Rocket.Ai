@@ -535,6 +535,7 @@
     let authenticatedEmail = null;
     let selectedAttachment = null;
     let cameraStream = null;
+    let guestHistory = [];
 
     function addBubble(text, type) {
       const div = document.createElement("div");
@@ -610,9 +611,13 @@
       chatInput.value = "";
 
       const formData = new FormData();
-      formData.append("message", msg || "Analyze the attached file.");
+      const requestMessage = msg || "Analyze the attached file.";
+      formData.append("message", requestMessage);
       if (selectedConversationId) {
         formData.append("conversation_id", selectedConversationId);
+      }
+      if (!authenticatedEmail) {
+        formData.append("history", JSON.stringify(guestHistory));
       }
       if (selectedAttachment) {
         formData.append("file", selectedAttachment);
@@ -628,6 +633,13 @@
         return;
       }
       addBubble(data.reply, "ai");
+      if (!authenticatedEmail) {
+        guestHistory.push(
+          { role: "user", content: requestMessage },
+          { role: "assistant", content: data.reply }
+        );
+        guestHistory = guestHistory.slice(-20);
+      }
       selectedConversationId = data.conversation_id || selectedConversationId;
       if (authenticatedEmail) loadConversations();
 
@@ -645,6 +657,7 @@
     };
 
     function resetChatArea() {
+      guestHistory = [];
       chatArea.innerHTML = "";
       addBubble("Hi, I’m Rocket. What can I help you with?", "ai");
     }
